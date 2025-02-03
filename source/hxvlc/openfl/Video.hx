@@ -1174,7 +1174,7 @@ class Video extends openfl.display.Bitmap
 	}
 
 	@:noCompletion
-	private override function __enterFrame(deltaTime:Int):Void {}
+	private override function __enterFrame(deltaTime:Float):Void {}
 
 	@:noCompletion
 	private override function set_bitmapData(value:BitmapData):BitmapData
