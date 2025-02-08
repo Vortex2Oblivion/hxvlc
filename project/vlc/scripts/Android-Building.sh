@@ -1,53 +1,117 @@
 #!/bin/bash
 
-# Author: Lily Ross (mcagabe19)
+# -------------------------------------
+# Author: Mihai Alexandru (M.A. Jigsaw)
+# -------------------------------------
 
-# Supported architectures
-valid_archs=("arm" "arm64" "x86" "x86_64")
-
-# Check if no arguments are provided
-if [ $# -eq 0 ]; then
-  echo "No architecture defined. (Possible values are arm, arm64, x86, or x86_64)"
-  exit 1
+# Check if the first argument is valid.
+if [ -z "$1" ]; then
+	echo "Error: No architecture specified. Usage: $0 <architecture>"
+	exit 1
 fi
 
-# Check if provided architecture(s) are valid
-for arch in "$@"; do
-  if [[ ! " ${valid_archs[*]} " =~ " ${arch} " ]]; then
-    echo "Invalid architecture: $arch (Possible values are arm, arm64, x86, or x86_64)"
-    exit 1
-  fi
-done
+# Detect OS
+if [[ "$(uname -s)" == "Darwin" ]]; then
+	HOST_TAG="darwin-x86_64"
+elif [[ "$(uname -s)" == "Linux" ]]; then
+	HOST_TAG="linux-x86_64"
+else
+	echo "Unsupported OS: $(uname -s)"
+	exit 1
+fi
 
-# Proceed with setup only after all architectures are validated
+# Exit on any error.
+set -e
+
+# Per architecture config
+if [ "$1" = "arm64" ]; then
+	TARGET_TUPLE="aarch64-linux-android"
+	SHORT_ARCH="arm64"
+	JNI_DIR_NAME="arm64-v8a"
+	NUMBER_ARCH="64"
+elif [ "$1" = "armv7a" ]; then
+	TARGET_TUPLE="arm-linux-androideabi"
+	SHORT_ARCH="arm"
+	JNI_DIR_NAME="armeabi-v7a"
+	NUMBER_ARCH="v7"
+elif [ "$1" = "x86" ]; then
+	TARGET_TUPLE="i686-linux-android"
+	SHORT_ARCH="x86"
+	JNI_DIR_NAME="x86"
+	NUMBER_ARCH="x86"
+elif [ "$1" = "x86_64" ]; then
+	TARGET_TUPLE="x86_64-linux-android"
+	SHORT_ARCH="x86_64"
+	JNI_DIR_NAME="x86_64"
+	NUMBER_ARCH="x86_64"
+else
+	echo "Error: Unknown architecture '$1'. Supported architectures: arm64, armv7a, x86, x86_64."
+	exit 1
+fi
+
+# First, get "libvlcjni" source.
 git clone https://code.videolan.org/videolan/libvlcjni.git --depth=1 --recursive -b libvlcjni-3.x
-sudo apt-get install -y gettext autopoint automake ant autopoint cmake build-essential libtool-bin lua5.2 liblua5.2-dev patch pkg-config protobuf-compiler ragel subversion unzip git flex python3 wget nasm meson ninja-build
+
+# Enter "libvlcjni" source.
 cd libvlcjni
-mkdir ../build
-git apply ../patches/libvlcjni/*
+
+# Function to reoder Git patches.
+reorder_patches()
+{
+	local dir="$1"
+
+	shift
+
+	local REMOVE_PATCHES=("$@")
+
+	cd "$dir" || exit 1
+
+	for patch in "${REMOVE_PATCHES[@]}"; do
+		rm -f "$patch"
+	done
+
+	local i=1
+
+	for patch in $(ls | sort); do
+		local new_name=$(printf "%04d-%s" "$i" "$(echo "$patch" | cut -d- -f2-)")
+
+		if [[ "$patch" != "$new_name" ]]; then
+			mv "$patch" "$new_name"
+		fi
+
+		((i++))
+	done
+}
+
+# Remove the following patches as they change the api which is not what we need.
+reorder_patches "libvlc/patches" \
+	"0002-libvlc-events-Add-callbacks-for-record.patch" \
+	"0005-libvlc-media_player-Add-record-method.patch" \
+	"0008-input-Extract-attachment-also-when-preparsing.patch" \
+	"0010-media_player-backport-fast-seek-argument.patch"
+
+# Go back 2 dirs.
+cd ../../
+
+# Get "vlc" source.
 buildsystem/get-vlc.sh
 
-# Compile for each valid architecture passed
-for arch in "$@"; do
-  ANDROID_NDK=$ANDROID_NDK_HOME buildsystem/compile-libvlc.sh -a "$arch" --no-jni --release
+# Make prebuilt contribs bars.
+export VLC_CONTRIB_SHA=$(cd vlc && extras/ci/get-contrib-sha.sh android-$SHORT_ARCH)
+export VLC_PREBUILT_CONTRIBS_URL=https://artifacts.videolan.org/vlc-3.0/android-$SHORT_ARCH/vlc-contrib-$TARGET_TUPLE-$VLC_CONTRIB_SHA.tar.bz2
 
-  # Move and copy relevant files based on architecture
-  case "$arch" in
-    arm)
-      mv libvlcjni/libvlc/jni/libs/*/libvlc.so ../build/libvlc-v7.so
-      cp $ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/libc++_shared.so ../build/libc++_shared-v7.so
-      ;;
-    arm64)
-      mv libvlcjni/libvlc/jni/libs/*/libvlc.so ../build/libvlc-64.so
-      cp $ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so ../build/libc++_shared-64.so
-      ;;
-    x86)
-      mv libvlcjni/libvlc/jni/libs/*/libvlc.so ../build/libvlc-x86.so
-      cp $ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android/libc++_shared.so ../build/libc++_shared-x86.so
-      ;;
-    x86_64)
-      mv libvlcjni/libvlc/jni/libs/*/libvlc.so ../build/libvlc-x86_64.so
-      cp $ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android/libc++_shared.so ../build/libc++_shared-x86_64.so
-      ;;
-  esac
-done
+# Compile "libvlc".
+buildsystem/compile-libvlc.sh -a $SHORT_ARCH --no-jni --release --with-prebuilt-contribs
+
+# Make the output directory
+mkdir -p ../build/include
+mkdir -p ../build/lib
+
+# Copy files to the output directory
+cp -r vlc/build-android-$TARGET_TUPLE/install/include/* ../build/include/
+cp libvlc/jni/libs/$JNI_DIR_NAME/libvlc.so ../build/lib/libvlc-$NUMBER_ARCH.so
+cp libvlc/jni/libs/$JNI_DIR_NAME/libc++_shared.so ../build/lib/libc++_shared-$NUMBER_ARCH.so
+
+# Finish
+echo ""
+echo "Build succeeded!"
