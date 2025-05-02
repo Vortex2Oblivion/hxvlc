@@ -67,7 +67,7 @@ class FlxVideoSprite extends FlxSprite
 	 * @param options Additional options to configure the media.
 	 * @return `true` if the media was loaded successfully, `false` otherwise.
 	 */
-	public inline function load(location:Location, ?options:Array<String>):Bool
+	public function load(location:Location, ?options:Array<String>):Bool
 	{
 		return bitmap != null ? bitmap.load(location, options) : false;
 	}
