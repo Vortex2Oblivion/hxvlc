@@ -1,18 +1,32 @@
 package hxvlc.util;
 
+import cpp.CastCharStar;
+import cpp.ConstCharStar;
+import cpp.Pointer;
+import cpp.RawConstPointer;
+import cpp.Stdlib;
+import cpp.UInt32;
+import cpp.UInt8;
+import cpp.VarList;
+
 import haxe.Exception;
 import haxe.PosInfos;
 import haxe.io.BytesInput;
 import haxe.io.Path;
+
 import hxvlc.externs.LibVLC;
 import hxvlc.externs.Types;
+
 import sys.FileSystem;
+
+using StringTools;
 
 using cpp.NativeArray;
 
 /**
  * Utility class providing helper methods for common operations.
  */
+@:access(haxe.io.BytesInput)
 @:unreflective
 class Util
 {
@@ -26,20 +40,20 @@ class Util
 	 * @return The formatted string.
 	 */
 	@:noDebug
-	public static function getStringFromFormat(fmt:cpp.ConstCharStar, args:cpp.VarList):String
+	public static function getStringFromFormat(fmt:ConstCharStar, args:VarList):String
 	{
 		final len:Int = untyped vsnprintf(untyped nullptr, 0, fmt, args);
 
 		if (len <= 0)
 			return '';
 
-		final buffer:cpp.CastCharStar = cast cpp.Stdlib.nativeMalloc(len + 1);
+		final buffer:CastCharStar = cast Stdlib.nativeMalloc(len + 1);
 
 		untyped vsnprintf(buffer, len + 1, fmt, args);
 
 		final msg:String = new String(untyped buffer);
 
-		cpp.Stdlib.nativeFree(untyped buffer);
+		Stdlib.nativeFree(untyped buffer);
 
 		return msg;
 	}
@@ -54,13 +68,13 @@ class Util
 	 * @param ctx A pointer to a `LibVLC_Log_T` structure representing the log context.
 	 * @return A `PosInfos` object containing the normalized file name, line number, and empty class/method names.
 	 */
-	public static function getPosFromContext(ctx:cpp.RawConstPointer<LibVLC_Log_T>):PosInfos
+	public static function getPosFromContext(ctx:RawConstPointer<LibVLC_Log_T>):PosInfos
 	{
-		final fileName:cpp.ConstCharStar = untyped nullptr;
+		final fileName:ConstCharStar = untyped nullptr;
 
-		final lineNumber:cpp.UInt32 = 0;
+		final lineNumber:UInt32 = 0;
 
-		LibVLC.log_get_context(ctx, untyped nullptr, cpp.RawPointer.addressOf(fileName), cpp.RawPointer.addressOf(lineNumber));
+		LibVLC.log_get_context(ctx, untyped nullptr, Pointer.addressOf(fileName).raw, Pointer.addressOf(lineNumber).raw);
 
 		return {
 			fileName: fileName != null ? Path.normalize(fileName) : '',
@@ -74,8 +88,10 @@ class Util
 	 * Creates directories recursively.
 	 * 
 	 * This method ensures that all directories in the specified path are created.
-	 * If a directory already exists, it is skipped. If a file exists with the same name
-	 * as a directory, it is deleted before creating the directory.
+	 * 
+	 * If a directory already exists, it is skipped.
+	 * 
+	 * If a file exists with the same name as a directory, it is deleted before creating the directory.
 	 * 
 	 * @param directory The path of the directory to create.
 	 */
@@ -145,6 +161,21 @@ class Util
 	}
 
 	/**
+	 * Converts an absolute file path to a URL string.
+	 *
+	 * @param path The absolute file path to convert.
+	 * @return The corresponding URL string.
+	 */
+	public static function convertAbsToURL(path:String):String
+	{
+		#if windows
+		return 'file:///${Path.normalize(FileSystem.absolutePath(path))}';
+		#else
+		return 'file://${Path.normalize(FileSystem.absolutePath(path))}';
+		#end
+	}
+
+	/**
 	 * Reads data from a `BytesInput` stream into a raw memory buffer.
 	 *
 	 * @param input The `BytesInput` object acting as the source bitstream.
@@ -152,7 +183,7 @@ class Util
 	 * @param len The maximum number of bytes to read into the buffer.
 	 * @return A strictly positive number of bytes read, 0 on end-of-stream, or -1 on unrecoverable error.
 	 */
-	public static function readFromInput(input:BytesInput, buf:cpp.RawPointer<cpp.UInt8>, len:Int):Int
+	public static function readFromInput(input:BytesInput, buf:Pointer<UInt8>, len:Int):Int
 	{
 		if (input.position >= input.length)
 			return 0;
@@ -161,10 +192,10 @@ class Util
 
 		final read:Int = len < remaining ? len : remaining;
 
-		if (input.position > (input.length - read))
+		if (input.position > (input.length - read) || input.b == null)
 			return -1;
 
-		cpp.Stdlib.nativeMemcpy(untyped buf, untyped cpp.RawPointer.addressOf(input.b.getBase().getBase()[input.position]), read);
+		Stdlib.nativeMemcpy(cast buf.raw, cast Pointer.addressOf(input.b.getBase().getBase()[input.position]).constRaw, read);
 
 		input.position += read;
 

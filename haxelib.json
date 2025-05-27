@@ -11,8 +11,8 @@
 		"haxeflixel"
 	],
 	"description": "A Haxe/OpenFL library for @:native video playback using libVLC.",
-	"version": "2.1.4",
-	"releasenote": "Fixed an issue with video's artifacting and some adjustments to the logging.",
+	"version": "2.2.1",
+	"releasenote": "Some fixes to null safety and an extern type issue.",
 	"contributors": [
 		"MAJigsaw77"
 	],

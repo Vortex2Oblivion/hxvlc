@@ -6,8 +6,10 @@ import flixel.system.FlxAssets;
 import flixel.text.FlxText;
 import flixel.util.FlxColor;
 import flixel.util.FlxTimer;
+
 import hxvlc.flixel.FlxVideoSprite;
 import hxvlc.util.Handle;
+
 import sys.FileSystem;
 
 @:nullSafety
@@ -43,7 +45,7 @@ class VideoState extends FlxState
 					video.bitmap.position -= 0.1;
 				else if (FlxG.keys.justPressed.RIGHT)
 					video.bitmap.position += 0.1;
-	
+
 				if (FlxG.keys.justPressed.A)
 					video.bitmap.rate -= 0.01;
 				else if (FlxG.keys.justPressed.D)
@@ -108,7 +110,7 @@ class VideoState extends FlxState
 
 			try
 			{
-				final file:String = haxe.io.Path.join(['videos', FileSystem.readDirectory('videos')[0]]);
+				final file:String = haxe.io.Path.join(['assets', FileSystem.readDirectory('assets')[0]]);
 
 				if (file != null && file.length > 0)
 					video.load(file);

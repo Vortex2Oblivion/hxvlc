@@ -1,18 +1,32 @@
 package hxvlc.util;
 
+import cpp.ConstCharStar;
+import cpp.Pointer;
+import cpp.StdVector;
+
 import haxe.MainLoop;
 import haxe.io.Path;
+
 import hxvlc.externs.LibVLC;
 import hxvlc.externs.Types;
 import hxvlc.util.macros.DefineMacro;
+
 import sys.FileSystem;
 import sys.thread.Mutex;
+
+#if HXVLC_LOGGING
+import cpp.RawConstPointer;
+import cpp.VarList;
+#end
+
 #if android
 import haxe.Exception;
+
 import lime.app.Future;
 import lime.system.System;
 import lime.utils.AssetLibrary;
 import lime.utils.Assets;
+
 import sys.io.File;
 #end
 
@@ -30,7 +44,7 @@ import sys.io.File;
 class Handle
 {
 	/** The instance of LibVLC that is used globally. */
-	public static var instance(default, null):Null<cpp.RawPointer<LibVLC_Instance_T>>;
+	public static var instance(default, null):Null<Pointer<LibVLC_Instance_T>>;
 
 	/** Indicates whether the instance is still loading. */
 	public static var loading(default, null):Bool = false;
@@ -92,7 +106,7 @@ class Handle
 
 		if (instance != null)
 		{
-			LibVLC.release(instance);
+			LibVLC.release(instance.raw);
 			instance = null;
 		}
 
@@ -117,7 +131,7 @@ class Handle
 		{
 			setupEnvVariables();
 
-			final args:cpp.StdVector<cpp.ConstCharStar> = new cpp.StdVector<cpp.ConstCharStar>();
+			final args:StdVector<ConstCharStar> = new cpp.StdVector<ConstCharStar>();
 			args.push_back("--ignore-config");
 			args.push_back("--drop-late-frames");
 			args.push_back("--aout=none");
@@ -158,7 +172,7 @@ class Handle
 				}
 			}
 
-			instance = LibVLC.alloc(args.size(), args.data());
+			instance = Pointer.fromRaw(LibVLC.alloc(args.size(), args.data()));
 
 			if (instance == null)
 			{
@@ -189,10 +203,10 @@ class Handle
 				final hxvlcVersion:String = DefineMacro.getString('hxvlc', 'Unknown Version');
 				final haxeVersion:String = DefineMacro.getString('haxe', 'Unknown Version');
 
-				LibVLC.set_user_agent(instance, 'hxvlc', 'hxvlc "$hxvlcVersion" (Haxe "$haxeVersion" ${Sys.systemName()})');
+				LibVLC.set_user_agent(instance.raw, 'hxvlc', 'hxvlc "$hxvlcVersion" (Haxe "$haxeVersion" ${Sys.systemName()})');
 
 				#if HXVLC_LOGGING
-				LibVLC.log_set(instance, untyped __cpp__('instance_logging'), untyped NULL);
+				LibVLC.log_set(instance.raw, untyped __cpp__('instance_logging'), untyped NULL);
 				#end
 			}
 		}
@@ -281,7 +295,7 @@ class Handle
 	@:noCompletion
 	@:noDebug
 	@:unreflective
-	private static function instanceLogging(level:Int, ctx:cpp.RawConstPointer<LibVLC_Log_T>, fmt:cpp.ConstCharStar, args:cpp.VarList):Void
+	private static function instanceLogging(level:Int, ctx:RawConstPointer<LibVLC_Log_T>, fmt:ConstCharStar, args:VarList):Void
 	{
 		if (level > DefineMacro.getInt('HXVLC_VERBOSE', -1) || level == DefineMacro.getInt('HXVLC_EXCLUDE_LOG_LEVEL', -1))
 			return;
